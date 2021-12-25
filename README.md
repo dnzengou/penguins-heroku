@@ -1,14 +1,19 @@
-# Penguins web app deployed on Heroku
+[![Streamlit App](https://static.streamlit.io/badges/streamlit_badge_black_white.svg)](#)
 
-Check out the YouTube video showing the development of this web app at https://youtu.be/zK4Ch6e1zq8
+# 🗳️💡 Idébank web app deployed on Heroku
 
-The deployed web app is live at https://dp-penguins.herokuapp.com/
 
-This web app predicts the species of penguins as a function of their input parameters (bill length, bill width, flipper length, body mass, sex and island).
+The deployed web app is live at https://#
+
+Web app to easily collect and write ideas from the SU Center of Digital Health team from/to a database (here a simple [Google Sheet]).
 
 The web app was built in Python using the following libraries:
 * streamlit
 * pandas
-* numpy
-* scikit-learn
-* pickle
+* google auth
+* protobuf
+
+
+
+
+<img width="583" alt="screenshot" src="#">
