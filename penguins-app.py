@@ -1,80 +1,82 @@
-import streamlit as st
-import pandas as pd
-import numpy as np
-import pickle
-from sklearn.ensemble import RandomForestClassifier
+@st.experimental_singleton()
+def connect_to_gsheet():
+    # Create a connection object.
+    credentials = service_account.Credentials.from_service_account_info(
+        st.secrets["gcp_service_account"],
+        scopes=[SCOPE],
+    )
 
-st.write("""
-# Penguin Prediction App
-
-This app predicts the **Palmer Penguin** species!
-
-Data obtained from the [palmerpenguins library](https://github.com/allisonhorst/palmerpenguins) in R by Allison Horst.
-""")
-
-st.sidebar.header('User Input Features')
-
-st.sidebar.markdown("""
-[Example CSV input file](https://raw.githubusercontent.com/dataprofessor/data/master/penguins_example.csv)
-""")
-
-# Collects user input features into dataframe
-uploaded_file = st.sidebar.file_uploader("Upload your input CSV file", type=["csv"])
-if uploaded_file is not None:
-    input_df = pd.read_csv(uploaded_file)
-else:
-    def user_input_features():
-        island = st.sidebar.selectbox('Island',('Biscoe','Dream','Torgersen'))
-        sex = st.sidebar.selectbox('Sex',('male','female'))
-        bill_length_mm = st.sidebar.slider('Bill length (mm)', 32.1,59.6,43.9)
-        bill_depth_mm = st.sidebar.slider('Bill depth (mm)', 13.1,21.5,17.2)
-        flipper_length_mm = st.sidebar.slider('Flipper length (mm)', 172.0,231.0,201.0)
-        body_mass_g = st.sidebar.slider('Body mass (g)', 2700.0,6300.0,4207.0)
-        data = {'island': island,
-                'bill_length_mm': bill_length_mm,
-                'bill_depth_mm': bill_depth_mm,
-                'flipper_length_mm': flipper_length_mm,
-                'body_mass_g': body_mass_g,
-                'sex': sex}
-        features = pd.DataFrame(data, index=[0])
-        return features
-    input_df = user_input_features()
-
-# Combines user input features with entire penguins dataset
-# This will be useful for the encoding phase
-penguins_raw = pd.read_csv('https://raw.githubusercontent.com/dataprofessor/data/master/penguins_cleaned.csv')
-penguins = penguins_raw.drop(columns=['species'], axis=1)
-df = pd.concat([input_df,penguins],axis=0)
-
-# Encoding of ordinal features
-# https://www.kaggle.com/pratik1120/penguin-dataset-eda-classification-and-clustering
-encode = ['sex','island']
-for col in encode:
-    dummy = pd.get_dummies(df[col], prefix=col)
-    df = pd.concat([df,dummy], axis=1)
-    del df[col]
-df = df[:1] # Selects only the first row (the user input data)
-
-# Displays the user input features
-st.subheader('User Input features')
-
-if uploaded_file is not None:
-    st.write(df)
-else:
-    st.write('Awaiting CSV file to be uploaded. Currently using example input parameters (shown below).')
-    st.write(df)
-
-# Reads in saved classification model
-load_clf = pickle.load(open('penguins_clf.pkl', 'rb'))
-
-# Apply model to make predictions
-prediction = load_clf.predict(df)
-prediction_proba = load_clf.predict_proba(df)
+    service = build("sheets", "v4", credentials=credentials)
+    gsheet_connector = service.spreadsheets()
+    return gsheet_connector
 
 
-st.subheader('Prediction')
-penguins_species = np.array(['Adelie','Chinstrap','Gentoo'])
-st.write(penguins_species[prediction])
+def get_data(gsheet_connector) -> pd.DataFrame:
+    values = (
+        gsheet_connector.values()
+        .get(
+            spreadsheetId=SPREADSHEET_ID,
+            range=f"{SHEET_NAME}!A:E",
+        )
+        .execute()
+    )
 
-st.subheader('Prediction Probability')
-st.write(prediction_proba)
+    df = pd.DataFrame(values["values"])
+    df.columns = df.iloc[0]
+    df = df[1:]
+    return df
+
+
+def add_row_to_gsheet(gsheet_connector, row) -> None:
+    values = (
+        gsheet_connector.values()
+        .append(
+            spreadsheetId=SPREADSHEET_ID,
+            range=f"{SHEET_NAME}!A:E",
+            body=dict(values=row),
+            valueInputOption="USER_ENTERED",
+        )
+        .execute()
+    )
+
+
+st.set_page_config(page_title="Idébank", page_icon="💡", layout="centered")
+
+st.title("🗳️💡 Idébank")
+
+gsheet_connector = connect_to_gsheet()
+
+st.sidebar.write(
+    f"Denna app ska användas för att samla in idéer från SU Center of Digital Hälsa-teamet, lagra dem på ett [Google Sheet]({GSHEET_URL})  sorterat efter kategori och prioritetsnivå."
+)
+
+st.sidebar.write(
+    f"[Read more](https://docs.streamlit.io/knowledge-base/tutorials/databases/public-gsheet) about connecting your Streamlit app to Google Sheets."
+)
+
+form = st.form(key="annotation")
+
+with form:
+    cols = st.columns((1, 1))
+    author = cols[0].text_input("Report author:")
+    idea_category = cols[1].selectbox(
+        "Idékategori:", ["Innovation", "Visualisering", "Finansiering", "Utbildning", "API", "Problelösning", "Utvekling", "Nätverka", "RPA", "IoT lab", "AR VR"], index=2
+    )
+    description = st.text_area("Beskrivning:")
+    cols = st.columns(2)
+    date = cols[0].date_input("Idéns inlämningsdatum:")
+    idea_priority = cols[1].slider("Ide proritet:", 0, 1, 2, 3)
+    submitted = st.form_submit_button(label="Skicka in")
+
+
+if submitted:
+    add_row_to_gsheet(
+        gsheet_connector, [[author, idea_category, description, str(date), idea_priority]]
+    )
+    st.success("Jaaaj 🎉 Din idé har sparats!")
+    st.balloons()
+
+expander = st.expander("Se alla resultat")
+with expander:
+    st.write(f"Öppna originalet [Google Sheet]({GSHEET_URL})")
+    st.dataframe(get_data(gsheet_connector))
