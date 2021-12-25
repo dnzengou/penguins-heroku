@@ -51,7 +51,7 @@ def add_row_to_gsheet(gsheet_connector, row) -> None:
     )
 
 
-st.set_page_config(page_title="Idébank", page_icon="💡", layout="centered")
+#st.set_page_config(page_title="Idébank", page_icon="💡", layout="centered")
 
 st.title("🗳️💡 Idébank")
 
